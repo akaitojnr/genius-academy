@@ -19,7 +19,7 @@ function formatNaira(kobo: number) {
 export default function CheckoutForm({ plans, subjects }: { plans: Plan[]; subjects: Subject[] }) {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [chosenSubjects, setChosenSubjects] = useState<string[]>([]);
-  const [provider, setProvider] = useState<"PAYSTACK" | "FLUTTERWAVE">("PAYSTACK");
+  const [provider] = useState<"FLUTTERWAVE">("FLUTTERWAVE");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,14 +98,9 @@ export default function CheckoutForm({ plans, subjects }: { plans: Plan[]; subje
             <p className="text-sm text-slate-600">All subjects and live classes are included with PREMIUM.</p>
           )}
 
-          <h3 className="mt-5 font-semibold">Payment method</h3>
-          <div className="mt-2 flex gap-3">
-            {(["PAYSTACK", "FLUTTERWAVE"] as const).map((p) => (
-              <label key={p} className={`flex-1 cursor-pointer rounded-xl border px-4 py-3 text-center text-sm font-medium ${provider === p ? "border-brand-700 bg-brand-50" : "border-slate-200"}`}>
-                <input type="radio" name="provider" className="sr-only" checked={provider === p} onChange={() => setProvider(p)} />
-                {p === "PAYSTACK" ? "Paystack" : "Flutterwave"}
-              </label>
-            ))}
+          <div className="mt-4 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
+            <span>Payment Method:</span>
+            <span className="font-semibold text-brand-700">Flutterwave</span>
           </div>
 
           {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
