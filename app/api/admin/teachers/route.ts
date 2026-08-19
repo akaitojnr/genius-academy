@@ -43,8 +43,11 @@ export async function GET() {
     }
   }
 
-  // 3. Ensure Mr. Shedrach Makama exists
+  // 3. Ensure Mr. Shedrach Makama exists and is assigned to all subjects
   const targetEmail = "shedrachmakama2@gmail.com";
+  const allSubjects = await db.subject.findMany({ select: { id: true } });
+
+  let teacherIdToUse: string | null = null;
   const existingTarget = await db.user.findUnique({
     where: { email: targetEmail },
     include: { teacher: true },
@@ -52,8 +55,7 @@ export async function GET() {
 
   if (!existingTarget) {
     const passwordHash = await bcrypt.hash("Admin@2026", 12);
-    const allSubjects = await db.subject.findMany({ select: { id: true } });
-    await db.user.create({
+    const newUser = await db.user.create({
       data: {
         email: targetEmail,
         passwordHash,
@@ -66,7 +68,25 @@ export async function GET() {
           },
         },
       },
+      include: { teacher: true },
     });
+    teacherIdToUse = newUser.teacher?.id || null;
+  } else if (existingTarget.teacher) {
+    teacherIdToUse = existingTarget.teacher.id;
+    await db.teacher.update({
+      where: { id: existingTarget.teacher.id },
+      data: {
+        fullName: "Mr. Shedrach Makama",
+        subjects: { set: allSubjects.map((s) => ({ id: s.id })) },
+      },
+    }).catch(() => {});
+  }
+
+  if (teacherIdToUse) {
+    await db.course.updateMany({
+      where: { teacherId: null },
+      data: { teacherId: teacherIdToUse },
+    }).catch(() => {});
   }
 
   const teachers = await db.teacher.findMany({

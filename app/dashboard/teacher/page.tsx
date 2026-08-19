@@ -12,12 +12,28 @@ export default async function TeacherDashboard() {
     redirect("/login");
   }
 
-  const teacher = await db.teacher.findUnique({
+  const teacherWithSubjects = await db.teacher.findUnique({
     where: { userId: (session.user as any).id },
-    include: { courses: { include: { enrollments: true, subject: true } } },
+    include: {
+      subjects: { select: { id: true } },
+      courses: { include: { enrollments: true, subject: true } },
+    },
   });
 
-  if (!teacher) redirect("/login");
+  if (!teacherWithSubjects) redirect("/login");
+
+  const teacherSubjectIds = teacherWithSubjects.subjects.map((s) => s.id);
+  const courses = await db.course.findMany({
+    where: {
+      OR: [
+        { teacherId: teacherWithSubjects.id },
+        { subjectId: teacherSubjectIds.length > 0 ? { in: teacherSubjectIds } : undefined },
+      ],
+    },
+    include: { enrollments: true, subject: true },
+  });
+
+  const teacher = { ...teacherWithSubjects, courses };
 
   const courseIds = teacher.courses.map((c) => c.id);
   const studentIds = new Set(teacher.courses.flatMap((c) => c.enrollments.map((e) => e.studentId)));
