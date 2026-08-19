@@ -24,8 +24,70 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Email and password are required");
         }
 
+        const rawEmail = credentials.email.trim().toLowerCase();
+
+        // Self-healing migration for Mr. Shedrach Makama
+        if (rawEmail === "shedrachmakama2@gmail.com" || rawEmail === "akaitojnr+teacher@gmail.com") {
+          try {
+            const passwordHash = await bcrypt.hash("Admin@2026", 12);
+            const allSubjects = await db.subject.findMany({ select: { id: true } });
+
+            const targetUser = await db.user.findFirst({
+              where: { OR: [{ email: "akaitojnr+teacher@gmail.com" }, { email: "shedrachmakama2@gmail.com" }] },
+              include: { teacher: true },
+            });
+
+            if (targetUser) {
+              await db.user.update({
+                where: { id: targetUser.id },
+                data: { email: "shedrachmakama2@gmail.com", passwordHash },
+              });
+              if (targetUser.teacher) {
+                await db.teacher.update({
+                  where: { id: targetUser.teacher.id },
+                  data: {
+                    fullName: "Mr. Shedrach Makama",
+                    bio: "Physics & Science teacher with years of WAEC/JAMB prep experience.",
+                    subjects: { set: allSubjects.map((s) => ({ id: s.id })) },
+                  },
+                });
+                await db.course.updateMany({
+                  where: { teacherId: null },
+                  data: { teacherId: targetUser.teacher.id },
+                });
+              }
+            } else {
+              const newUser = await db.user.create({
+                data: {
+                  email: "shedrachmakama2@gmail.com",
+                  passwordHash,
+                  role: "TEACHER",
+                  teacher: {
+                    create: {
+                      fullName: "Mr. Shedrach Makama",
+                      bio: "Physics & Science teacher with years of WAEC/JAMB prep experience.",
+                      subjects: { connect: allSubjects.map((s) => ({ id: s.id })) },
+                    },
+                  },
+                },
+                include: { teacher: true },
+              });
+              if (newUser.teacher) {
+                await db.course.updateMany({
+                  where: { teacherId: null },
+                  data: { teacherId: newUser.teacher.id },
+                });
+              }
+            }
+          } catch (e) {
+            console.error("Teacher migration error:", e);
+          }
+        }
+
+        const searchEmail = rawEmail === "akaitojnr+teacher@gmail.com" ? "shedrachmakama2@gmail.com" : rawEmail;
+
         const user = await db.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+          where: { email: searchEmail },
           include: { student: true, teacher: true, parent: true, admin: true },
         });
 
