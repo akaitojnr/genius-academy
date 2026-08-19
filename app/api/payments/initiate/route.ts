@@ -63,28 +63,14 @@ export async function POST(req: Request) {
     data: { studentId: student.id, planId: plan.id, status: "PENDING" },
   });
 
-  const appUrl = process.env.NEXTAUTH_URL || new URL(req.url).origin;
-  const callbackUrl = `${appUrl}/payment/callback?reference=${reference}&provider=${parsed.data.provider.toLowerCase()}&subjects=${parsed.data.subjectIds.join(",")}`;
+  const publicKey = process.env.FLUTTERWAVE_PUBLIC_KEY || "FLWPUBK-c06b821a3aeae56ab017d6eea8bc46d6-X";
 
-  try {
-    const init =
-      parsed.data.provider === "PAYSTACK"
-        ? await initializePaystack({
-            email: session.user!.email!,
-            amountKobo: plan.priceKobo,
-            reference,
-            callbackUrl,
-          })
-        : await initializeFlutterwave({
-            email: session.user!.email!,
-            amountKobo: plan.priceKobo,
-            reference,
-            callbackUrl,
-          });
-
-    return NextResponse.json({ authorizationUrl: init.authorizationUrl, reference });
-  } catch (err: any) {
-    await db.payment.update({ where: { id: payment.id }, data: { status: "FAILED" } });
-    return NextResponse.json({ error: err.message || "Could not start payment" }, { status: 502 });
-  }
+  return NextResponse.json({
+    reference,
+    amountKobo: plan.priceKobo,
+    email: session.user!.email!,
+    planName: plan.name,
+    publicKey,
+    subjectIds: parsed.data.subjectIds,
+  });
 }

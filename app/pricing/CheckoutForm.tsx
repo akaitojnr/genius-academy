@@ -16,6 +16,21 @@ function formatNaira(kobo: number) {
   return `₦${(kobo / 100).toLocaleString()}`;
 }
 
+function loadFlutterwaveScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if ((window as any).FlutterwaveCheckout) {
+      resolve();
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.flutterwave.com/v3.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load Flutterwave checkout SDK"));
+    document.body.appendChild(script);
+  });
+}
+
 export default function CheckoutForm({ plans, subjects }: { plans: Plan[]; subjects: Subject[] }) {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [chosenSubjects, setChosenSubjects] = useState<string[]>([]);
@@ -45,10 +60,35 @@ export default function CheckoutForm({ plans, subjects }: { plans: Plan[]; subje
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Could not start payment");
+        setLoading(false);
         return;
       }
-      window.location.href = data.authorizationUrl;
-    } finally {
+
+      await loadFlutterwaveScript();
+
+      (window as any).FlutterwaveCheckout({
+        public_key: data.publicKey,
+        tx_ref: data.reference,
+        amount: data.amountKobo / 100,
+        currency: "NGN",
+        payment_options: "card,mobilemoney,ussd,banktransfer",
+        customer: {
+          email: data.email,
+        },
+        customizations: {
+          title: "Genius Academy",
+          description: `${data.planName} Subscription`,
+        },
+        callback: function (response: any) {
+          const subjectsParam = (data.subjectIds || []).join(",");
+          window.location.href = `/payment/callback?reference=${data.reference}&provider=flutterwave&subjects=${subjectsParam}`;
+        },
+        onclose: function () {
+          setLoading(false);
+        },
+      });
+    } catch (err: any) {
+      setError(err.message || "An error occurred launching payment");
       setLoading(false);
     }
   }
@@ -110,7 +150,7 @@ export default function CheckoutForm({ plans, subjects }: { plans: Plan[]; subje
             disabled={loading || (selectedPlan.subjectLimit !== null && chosenSubjects.length === 0)}
             className="mt-5 w-full rounded-full bg-brand-700 py-3 font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
           >
-            {loading ? "Redirecting to payment…" : `Pay ${formatNaira(selectedPlan.priceKobo)}`}
+            {loading ? "Launching Flutterwave..." : `Pay ${formatNaira(selectedPlan.priceKobo)}`}
           </button>
         </div>
       )}
