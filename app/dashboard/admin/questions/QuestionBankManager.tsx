@@ -50,7 +50,7 @@ function parseCSV(text: string): { rows: ParsedRow[]; errors: string[] } {
 
   const requiredHeaders = ["text", "optionA", "optionB", "optionC", "optionD", "correctOption", "difficulty", "classLevel", "term"];
   const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, "").toLowerCase());
-  const missing = requiredHeaders.filter((h) => !headers.includes(h));
+  const missing = requiredHeaders.filter((h) => !headers.includes(h.toLowerCase()));
   if (missing.length > 0) {
     errors.push(`CSV is missing required columns: ${missing.join(", ")}`);
     return { rows, errors };
