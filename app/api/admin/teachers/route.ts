@@ -16,14 +16,41 @@ export async function GET() {
   const auth = await requireRole(["ADMIN"]);
   if (!auth.ok) return NextResponse.json({ error: "Unauthorized" }, { status: auth.status });
 
-  // Auto-sync/upsert Mr. Shedrach Makama
-  const targetEmail = "shedrachmakama2@gmail.com";
-  const existingTeacher = await db.user.findFirst({
-    where: { OR: [{ email: targetEmail }, { email: "akaitojnr+teacher@gmail.com" }] },
+  // 1. Update any teacher named Mrs. Adaeze Okoro to Mr. Shedrach Makama
+  await db.teacher.updateMany({
+    where: { fullName: "Mrs. Adaeze Okoro" },
+    data: { fullName: "Mr. Shedrach Makama" },
+  }).catch(() => {});
+
+  // 2. Update or remove old email akaitojnr+teacher@gmail.com
+  const oldUser = await db.user.findUnique({
+    where: { email: "akaitojnr+teacher@gmail.com" },
     include: { teacher: true },
   });
 
-  if (!existingTeacher) {
+  if (oldUser) {
+    const newEmailUser = await db.user.findUnique({ where: { email: "shedrachmakama2@gmail.com" } });
+    if (newEmailUser && oldUser.id !== newEmailUser.id) {
+      if (oldUser.teacher) {
+        await db.teacher.delete({ where: { id: oldUser.teacher.id } }).catch(() => {});
+      }
+      await db.user.delete({ where: { id: oldUser.id } }).catch(() => {});
+    } else {
+      await db.user.update({
+        where: { id: oldUser.id },
+        data: { email: "shedrachmakama2@gmail.com" },
+      }).catch(() => {});
+    }
+  }
+
+  // 3. Ensure Mr. Shedrach Makama exists
+  const targetEmail = "shedrachmakama2@gmail.com";
+  const existingTarget = await db.user.findUnique({
+    where: { email: targetEmail },
+    include: { teacher: true },
+  });
+
+  if (!existingTarget) {
     const passwordHash = await bcrypt.hash("Admin@2026", 12);
     const allSubjects = await db.subject.findMany({ select: { id: true } });
     await db.user.create({
@@ -40,17 +67,6 @@ export async function GET() {
         },
       },
     });
-  } else if (existingTeacher.email !== targetEmail || existingTeacher.teacher?.fullName !== "Mr. Shedrach Makama") {
-    await db.user.update({
-      where: { id: existingTeacher.id },
-      data: { email: targetEmail },
-    });
-    if (existingTeacher.teacher) {
-      await db.teacher.update({
-        where: { id: existingTeacher.teacher.id },
-        data: { fullName: "Mr. Shedrach Makama" },
-      });
-    }
   }
 
   const teachers = await db.teacher.findMany({
