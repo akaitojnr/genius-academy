@@ -20,6 +20,14 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Email and password are required");
         }
 
+        // Ensure missing schema columns exist on Neon PostgreSQL
+        try {
+          await db.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "resetToken" TEXT;`);
+          await db.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "resetTokenExpiry" TIMESTAMP(3);`);
+        } catch (e) {
+          // Columns already exist
+        }
+
         const email = credentials.email.trim().toLowerCase();
         const inputPassword = credentials.password;
 
