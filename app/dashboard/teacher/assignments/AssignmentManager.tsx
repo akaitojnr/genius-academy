@@ -8,7 +8,7 @@ type Submission = {
   student: { fullName: string };
   content: string | null;
   fileUrl: string | null;
-  submittedAt: string;
+  submittedAt: string | Date;
   score: number | null;
   feedback: string | null;
 };
@@ -16,7 +16,7 @@ type Assignment = {
   id: string;
   title: string;
   instructions: string;
-  dueDate: string;
+  dueDate: string | Date;
   submissions: Submission[];
 };
 

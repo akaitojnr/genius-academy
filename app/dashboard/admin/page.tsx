@@ -31,7 +31,7 @@ export default async function AdminDashboard() {
     where: { status: "ACTIVE", expiryDate: { gte: new Date() } },
   });
 
-  const stats = [
+  const stats: { label: string; value: string | number; note?: string }[] = [
     { label: "Total Students", value: totalStudents },
     { label: "Registered Teachers", value: totalTeachers },
     { label: "Total Courses", value: totalCourses },

@@ -11,7 +11,7 @@ type LiveClass = {
   topic: string;
   classLevel: string;
   description: string | null;
-  scheduledAt: string;
+  scheduledAt: string | Date;
   meetingLink: string;
   recordingUrl: string | null;
 };

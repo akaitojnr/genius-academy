@@ -158,6 +158,7 @@ model Subject {
 
   courses          Course[]
   questions        Question[]
+  exams            Exam[]
   teachers         Teacher[] @relation("TeacherSubjects")
   preferredByStudents Student[] @relation("StudentPreferredSubjects")
 }
@@ -176,6 +177,7 @@ model Course {
 
   topics      Topic[]
   enrollments Enrollment[]
+  assignments Assignment[]
 
   @@unique([subjectId, classLevel])
 }
@@ -287,6 +289,7 @@ model Exam {
   id          String   @id @default(cuid())
   title       String
   subjectId   String?
+  subject     Subject? @relation(fields: [subjectId], references: [id])
   classLevel  ClassLevel?
   durationMin Int      @default(30)
   createdAt   DateTime @default(now())
@@ -337,6 +340,7 @@ model Assignment {
   teacherId   String
   teacher     Teacher  @relation(fields: [teacherId], references: [id])
   courseId    String?
+  course      Course?  @relation(fields: [courseId], references: [id])
   title       String
   instructions String  @db.Text
   dueDate     DateTime
