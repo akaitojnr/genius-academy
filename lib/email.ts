@@ -28,7 +28,7 @@ export async function sendResetPasswordEmail(email: string, resetUrl: string) {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          sender: { name: "Genius Academy", email: process.env.SENDER_EMAIL || "akaitojnr@gmail.com" },
+          sender: { name: "Genius Academy", email: process.env.BREVO_SENDER_EMAIL || process.env.SENDER_EMAIL || "akaitojnr@gmail.com" },
           to: [{ email }],
           subject: "Reset Your Genius Academy Password",
           htmlContent,
