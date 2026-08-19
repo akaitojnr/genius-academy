@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
+import { sendResetPasswordEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
@@ -12,9 +13,8 @@ export async function POST(req: Request) {
 
     const user = await db.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user) {
-      // Return positive message so user details aren't leaked
       return NextResponse.json({
-        message: "If an account exists with that email, a password reset link has been generated.",
+        message: "If an account exists with that email address, a password reset email has been sent.",
       });
     }
 
@@ -28,7 +28,8 @@ export async function POST(req: Request) {
 
     const origin = req.headers.get("origin") || process.env.NEXTAUTH_URL || "";
     const resetUrl = `${origin}/reset-password?token=${token}`;
-    console.log(`[SECURE RESET LINK]: ${resetUrl}`);
+
+    await sendResetPasswordEmail(user.email, resetUrl);
 
     return NextResponse.json({
       message: "If an account exists with that email address, a password reset email has been sent.",
