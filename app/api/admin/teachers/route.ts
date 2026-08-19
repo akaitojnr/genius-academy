@@ -16,6 +16,43 @@ export async function GET() {
   const auth = await requireRole(["ADMIN"]);
   if (!auth.ok) return NextResponse.json({ error: "Unauthorized" }, { status: auth.status });
 
+  // Auto-sync/upsert Mr. Shedrach Makama
+  const targetEmail = "shedrachmakama2@gmail.com";
+  const existingTeacher = await db.user.findFirst({
+    where: { OR: [{ email: targetEmail }, { email: "akaitojnr+teacher@gmail.com" }] },
+    include: { teacher: true },
+  });
+
+  if (!existingTeacher) {
+    const passwordHash = await bcrypt.hash("Admin@2026", 12);
+    const allSubjects = await db.subject.findMany({ select: { id: true } });
+    await db.user.create({
+      data: {
+        email: targetEmail,
+        passwordHash,
+        role: "TEACHER",
+        teacher: {
+          create: {
+            fullName: "Mr. Shedrach Makama",
+            bio: "Physics & Science teacher with years of WAEC/JAMB prep experience.",
+            subjects: { connect: allSubjects.map((s) => ({ id: s.id })) },
+          },
+        },
+      },
+    });
+  } else if (existingTeacher.email !== targetEmail || existingTeacher.teacher?.fullName !== "Mr. Shedrach Makama") {
+    await db.user.update({
+      where: { id: existingTeacher.id },
+      data: { email: targetEmail },
+    });
+    if (existingTeacher.teacher) {
+      await db.teacher.update({
+        where: { id: existingTeacher.teacher.id },
+        data: { fullName: "Mr. Shedrach Makama" },
+      });
+    }
+  }
+
   const teachers = await db.teacher.findMany({
     include: { user: true, subjects: true, _count: { select: { courses: true, liveClasses: true } } },
     orderBy: { createdAt: "desc" },

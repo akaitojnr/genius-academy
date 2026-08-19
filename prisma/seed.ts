@@ -183,7 +183,7 @@ async function main() {
 
     // Sample teacher account, assigned to the seeded Physics SS1 course.
     console.log("Seeding sample teacher account…");
-    const teacherEmail = "akaitojnr+teacher@gmail.com";
+    const teacherEmail = "shedrachmakama2@gmail.com";
     let teacherRecord = await db.teacher.findFirst({ where: { user: { email: teacherEmail } } });
     if (!teacherRecord) {
       const passwordHash = await bcrypt.hash("Admin@2026", 12);
@@ -194,8 +194,8 @@ async function main() {
           role: "TEACHER",
           teacher: {
             create: {
-              fullName: "Mrs. Adaeze Okoro",
-              bio: "Physics teacher with 8 years of WAEC/JAMB prep experience.",
+              fullName: "Mr. Shedrach Makama",
+              bio: "Physics & Science teacher with years of WAEC/JAMB prep experience.",
               subjects: { connect: [{ id: physics.id }] },
             },
           },
