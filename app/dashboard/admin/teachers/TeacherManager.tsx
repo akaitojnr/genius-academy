@@ -75,11 +75,29 @@ export default function TeacherManager({ subjects, initialTeachers }: { subjects
       <div className="mt-8 space-y-2">
         <h2 className="font-semibold">Teachers ({initialTeachers.length})</h2>
         {initialTeachers.map((t) => (
-          <div key={t.id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
-            <p className="font-medium">{t.fullName}</p>
-            <p className="text-xs text-slate-500">
-              {t.user.email} · {t.subjects.map((s) => s.name).join(", ") || "No subjects assigned"} · {t._count.courses} courses · {t._count.liveClasses} live classes
-            </p>
+          <div key={t.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 text-sm">
+            <div>
+              <p className="font-medium">{t.fullName}</p>
+              <p className="text-xs text-slate-500">
+                {t.user.email} · {t.subjects.map((s) => s.name).join(", ") || "No subjects assigned"} · {t._count.courses} courses · {t._count.liveClasses} live classes
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                const newPass = prompt(`Set new password for ${t.user.email}:`, "Admin@2026");
+                if (!newPass) return;
+                const res = await fetch("/api/admin/users/reset-password", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ email: t.user.email, newPassword: newPass }),
+                });
+                const data = await res.json();
+                alert(res.ok ? data.message : data.error || "Reset failed");
+              }}
+              className="shrink-0 rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              🔑 Reset Password
+            </button>
           </div>
         ))}
       </div>

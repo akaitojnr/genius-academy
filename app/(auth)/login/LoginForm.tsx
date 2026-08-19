@@ -58,14 +58,21 @@ export default function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <input
-          required
-          type="password"
-          placeholder="Password"
-          className="w-full rounded-xl border border-slate-200 px-4 py-3"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div>
+          <input
+            required
+            type="password"
+            placeholder="Password"
+            className="w-full rounded-xl border border-slate-200 px-4 py-3"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <div className="mt-1 text-right">
+            <Link href="/forgot-password" className="text-xs text-brand-700 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
+        </div>
         {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <button
           type="submit"
