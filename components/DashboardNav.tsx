@@ -42,6 +42,10 @@ export default async function DashboardNav() {
     links.push({ href: "/dashboard/parent", label: "My Children" });
   }
 
+  if (session) {
+    links.push({ href: "/dashboard/settings", label: "Settings" });
+  }
+
   const unreadCount = session
     ? await db.notification.count({ where: { userId: (session.user as any).id, isRead: false } })
     : 0;
