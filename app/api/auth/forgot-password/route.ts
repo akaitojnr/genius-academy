@@ -28,10 +28,10 @@ export async function POST(req: Request) {
 
     const origin = req.headers.get("origin") || process.env.NEXTAUTH_URL || "";
     const resetUrl = `${origin}/reset-password?token=${token}`;
+    console.log(`[SECURE RESET LINK]: ${resetUrl}`);
 
     return NextResponse.json({
-      message: "If an account exists with that email, a password reset link has been generated.",
-      resetUrl, // Helpful for direct testing & admin fallback
+      message: "If an account exists with that email address, a password reset email has been sent.",
     });
   } catch (error) {
     console.error("Forgot password error:", error);
