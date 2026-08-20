@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
 
 export const dynamic = "force-dynamic";
 
@@ -18,32 +16,21 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
 
     if (ext === "pdf") {
-      // Parse PDF server-side using pdf-parse
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const pdfParse = require("pdf-parse");
       const pdfData = await pdfParse(buffer);
       return NextResponse.json({ type: "text", content: pdfData.text });
     }
 
     if (ext === "docx") {
-      // Parse DOCX server-side with mammoth HTML output (preserves tables, images, headings)
       const mammoth = await import("mammoth");
       const result = await mammoth.convertToHtml(
         { buffer },
-        {
-          convertImage: mammoth.images.dataUri, // embed images as base64 data URIs
-          styleMap: [
-            "p[style-name='Heading 1'] => h1:fresh",
-            "p[style-name='Heading 2'] => h2:fresh",
-            "p[style-name='Heading 3'] => h3:fresh",
-            "p[style-name='Heading 4'] => h4:fresh",
-            "b => strong",
-            "i => em",
-          ],
-        }
+        { convertImage: mammoth.images.dataUri }
       );
-      return NextResponse.json({ type: "html", content: result.value, messages: result.messages });
+      return NextResponse.json({ type: "html", content: result.value });
     }
 
-    // Plain text files (.txt, .md)
     const text = buffer.toString("utf-8");
     return NextResponse.json({ type: "text", content: text });
   } catch (err: any) {

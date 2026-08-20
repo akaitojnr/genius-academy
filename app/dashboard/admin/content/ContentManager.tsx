@@ -148,26 +148,40 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
     setParsedLesson({});
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch("/api/admin/parse-document", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || "Failed to parse document.");
-        return;
-      }
-
       let html = "";
-      if (data.type === "html") {
-        html = data.content;
-      } else {
-        // Convert plain text to minimal HTML preserving line breaks
+      const ext = file.name.split(".").pop()?.toLowerCase();
+
+      if (ext === "docx") {
+        try {
+          const mammoth = await import("mammoth");
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.convertToHtml(
+            { arrayBuffer },
+            { convertImage: mammoth.images.dataUri }
+          );
+          html = result.value;
+        } catch (clientErr) {
+          console.warn("Client mammoth parse failed, falling back to server...", clientErr);
+          const formData = new FormData();
+          formData.append("file", file);
+          const res = await fetch("/api/admin/parse-document", { method: "POST", body: formData });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Server failed to parse DOCX.");
+          html = data.content;
+        }
+      } else if (ext === "pdf") {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/admin/parse-document", { method: "POST", body: formData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to parse PDF file.");
         html = data.content
+          .split("\n")
+          .map((line: string) => (line.trim() ? `<p>${line.trim()}</p>` : ""))
+          .join("\n");
+      } else {
+        const text = await file.text();
+        html = text
           .split("\n")
           .map((line: string) => (line.trim() ? `<p>${line.trim()}</p>` : ""))
           .join("\n");
@@ -176,8 +190,9 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
       setImportHtml(html);
       const sections = splitHtmlBySections(html);
       setParsedLesson(sections);
-    } catch (err) {
-      alert("Could not read the file. Please try again.");
+    } catch (err: any) {
+      console.error("Document import error:", err);
+      alert(`Error reading file: ${err.message || "Failed to process document."}`);
     } finally {
       setImportParsing(false);
     }
