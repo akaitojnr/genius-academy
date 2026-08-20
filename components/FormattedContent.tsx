@@ -32,35 +32,54 @@ export default function FormattedContent({ content }: Props) {
 
     const flushTable = (key: number) => {
       if (tableRows.length > 0) {
-        const header = tableRows[0];
-        const body = tableRows.slice(1).filter((r) => !r.every((cell) => /^[-:\s]+$/.test(cell)));
+        // Expand any embedded tabs inside cells & clean dummy separator rows
+        const cleanedRows: string[][] = tableRows
+          .map((row) => {
+            return row
+              .flatMap((cell) => (cell.includes("\t") ? cell.split("\t") : [cell]))
+              .map((c) => c.trim())
+              .filter((c) => c !== "-"); // strip dummy padding dashes
+          })
+          .filter((row) => row.length > 0 && !row.every((cell) => /^[-:\s]+$/.test(cell)));
 
-        elements.push(
-          <div key={`table-${key}`} className="my-4 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-slate-100 font-semibold text-slate-800">
-                <tr>
-                  {header.map((cell, idx) => (
-                    <th key={idx} className="border-b border-slate-200 px-4 py-2.5">
-                      {cell.trim()}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {body.map((row, rIdx) => (
-                  <tr key={rIdx} className="hover:bg-slate-50">
-                    {row.map((cell, cIdx) => (
-                      <td key={cIdx} className="px-4 py-2.5 text-slate-700">
-                        {cell.trim()}
-                      </td>
+        if (cleanedRows.length > 0) {
+          const maxCols = Math.max(...cleanedRows.map((r) => r.length));
+          const normalizedRows = cleanedRows.map((row) => {
+            const copy = [...row];
+            while (copy.length < maxCols) copy.push("");
+            return copy;
+          });
+
+          const header = normalizedRows[0];
+          const body = normalizedRows.slice(1);
+
+          elements.push(
+            <div key={`table-${key}`} className="my-4 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead className="bg-slate-100 font-semibold text-slate-800">
+                  <tr>
+                    {header.map((cell, idx) => (
+                      <th key={idx} className="border-b border-slate-200 px-4 py-2.5">
+                        {cell || `Col ${idx + 1}`}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {body.map((row, rIdx) => (
+                    <tr key={rIdx} className="hover:bg-slate-50">
+                      {row.map((cell, cIdx) => (
+                        <td key={cIdx} className="px-4 py-2.5 text-slate-700">
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
         tableRows = [];
       }
     };
