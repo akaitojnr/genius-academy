@@ -5,6 +5,8 @@ import { NextResponse } from "next/server";
 // "must be logged in" only. Admin and teacher routes are explicitly locked
 // down so a student can never reach them by editing the URL.
 const roleRules: { prefix: string; roles: string[] }[] = [
+  { prefix: "/dashboard/admin/content", roles: ["ADMIN", "TEACHER"] },
+  { prefix: "/dashboard/admin/questions", roles: ["ADMIN", "TEACHER"] },
   { prefix: "/dashboard/admin", roles: ["ADMIN"] },
   { prefix: "/dashboard/teacher", roles: ["TEACHER"] },
   { prefix: "/dashboard/parent", roles: ["PARENT"] },

@@ -6,7 +6,7 @@ import QuestionBankManager from "./QuestionBankManager";
 
 export default async function AdminQuestionsPage() {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any).role !== "ADMIN") {
+  if (!session || !["ADMIN", "TEACHER"].includes((session.user as any).role)) {
     redirect("/login");
   }
 

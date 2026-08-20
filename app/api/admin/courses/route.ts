@@ -31,7 +31,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = await requireRole(["ADMIN"]);
+  const auth = await requireRole(["ADMIN", "TEACHER"]);
   if (!auth.ok) return NextResponse.json({ error: "Unauthorized" }, { status: auth.status });
 
   const body = await req.json();
