@@ -12,7 +12,18 @@ export default async function AdminContentPage() {
 
   const subjects = await db.subject.findMany({ orderBy: { name: "asc" } });
   const courses = await db.course.findMany({
-    include: { subject: true, topics: { include: { lessons: true } } },
+    include: {
+      subject: true,
+      topics: {
+        include: {
+          lessons: {
+            include: { video: true },
+            orderBy: { order: "asc" },
+          },
+        },
+        orderBy: { order: "asc" },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 
