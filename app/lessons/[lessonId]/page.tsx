@@ -21,9 +21,14 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
   const session = await getServerSession(authOptions);
   let progress: { completed: boolean; videoSeconds: number } | null = null;
   let isStudent = false;
-  let hasAccess = false;
 
-  if (session && (session.user as any).role === "STUDENT") {
+  const role = (session?.user as any)?.role;
+  const isAdminOrTeacher = role === "ADMIN" || role === "TEACHER";
+
+  // Admins and Teachers always have 100% full access to all lessons & videos
+  let hasAccess = isAdminOrTeacher;
+
+  if (session && role === "STUDENT") {
     isStudent = true;
     const student = await db.student.findUnique({ where: { userId: (session.user as any).id } });
     if (student) {

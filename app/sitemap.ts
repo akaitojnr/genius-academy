@@ -1,6 +1,8 @@
 import { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 const siteUrl = process.env.NEXTAUTH_URL || "https://brightpath.example.com";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
