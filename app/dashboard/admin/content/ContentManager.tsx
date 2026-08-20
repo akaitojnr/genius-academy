@@ -592,7 +592,34 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
                 { name: "practiceQuestions", label: "Practice Questions" },
               ].map((f) => (
                 <div key={f.name}>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">{f.label}</label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">{f.label}</label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = prompt("Enter Diagram / Image URL (e.g. https://...):");
+                          if (!url) return;
+                          const caption = prompt("Enter Diagram Title / Caption (optional):", "Diagram") || "Diagram";
+                          const imgMarkdown = `\n\n![${caption}](${url})\n\n`;
+                          setEditForm((prev) => ({ ...prev, [f.name]: (prev[f.name] || "") + imgMarkdown }));
+                        }}
+                        className="text-[10px] font-semibold text-brand-700 hover:underline bg-brand-50 px-2 py-0.5 rounded"
+                      >
+                        🖼️ + Diagram
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const tableTemplate = `\n\n| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| Value 1 | Value 2 | Value 3 |\n\n`;
+                          setEditForm((prev) => ({ ...prev, [f.name]: (prev[f.name] || "") + tableTemplate }));
+                        }}
+                        className="text-[10px] font-semibold text-brand-700 hover:underline bg-brand-50 px-2 py-0.5 rounded"
+                      >
+                        📊 + Table
+                      </button>
+                    </div>
+                  </div>
                   <textarea
                     rows={3}
                     className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
