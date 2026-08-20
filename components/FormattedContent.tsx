@@ -68,13 +68,18 @@ export default function FormattedContent({ content }: Props) {
     lines.forEach((line, index) => {
       const trimmed = line.trim();
 
-      // Check for Markdown table line e.g. | Header 1 | Header 2 |
-      if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      // Check for Markdown table line e.g. | Header 1 | Header 2 | OR tab-separated text (pasted from Word/Excel)
+      if ((trimmed.startsWith("|") && trimmed.endsWith("|")) || (line.includes("\t") && line.split("\t").length > 1)) {
         inTable = true;
-        const cells = trimmed
-          .slice(1, -1)
-          .split("|")
-          .map((c) => c.trim());
+        let cells: string[] = [];
+        if (line.includes("\t")) {
+          cells = line.split("\t").map((c) => c.trim());
+        } else {
+          cells = trimmed
+            .slice(1, -1)
+            .split("|")
+            .map((c) => c.trim());
+        }
         tableRows.push(cells);
         return;
       }
