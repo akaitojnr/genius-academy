@@ -48,14 +48,14 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
     { label: "2. Introduction", content: lesson.introduction },
   ];
   const gatedSections: { label: string; content: string | null }[] = [
-    { label: "3. Detailed Explanation", content: lesson.explanation },
-    { label: "4. Definitions", content: lesson.definitions },
-    { label: "5–6. Worked Examples & Step-by-Step Solutions", content: lesson.workedExamples },
-    { label: "7. Diagrams", content: lesson.diagrams },
-    { label: "8. Real-Life Applications", content: lesson.realLifeApplications },
-    { label: "9. Common Mistakes", content: lesson.commonMistakes },
-    { label: "10. Summary", content: lesson.summary },
-    { label: "11. Practice Questions", content: lesson.practiceQuestions },
+    { label: "3. Definitions & Key Terms", content: lesson.definitions },
+    { label: "4. Detailed Explanation & Tables", content: lesson.explanation },
+    { label: "5. Worked Examples & Step-by-Step Solutions", content: lesson.workedExamples },
+    { label: "6. Diagrams", content: lesson.diagrams },
+    { label: "7. Real-Life Applications", content: lesson.realLifeApplications },
+    { label: "8. Common Mistakes", content: lesson.commonMistakes },
+    { label: "9. Summary", content: lesson.summary },
+    { label: "10. Practice Questions", content: lesson.practiceQuestions },
   ];
 
   return (

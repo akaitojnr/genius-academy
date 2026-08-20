@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 const subjects = [
   { name: "Physics", icon: "⚛️" },
   { name: "Chemistry", icon: "🧪" },

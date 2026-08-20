@@ -583,8 +583,8 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
               {[
                 { name: "objectives", label: "Learning Objectives" },
                 { name: "introduction", label: "Introduction" },
-                { name: "explanation", label: "Detailed Explanation & Tables" },
                 { name: "definitions", label: "Definitions & Key Terms" },
+                { name: "explanation", label: "Detailed Explanation & Tables" },
                 { name: "workedExamples", label: "Worked Examples & Solutions" },
                 { name: "realLifeApplications", label: "Real-Life Applications" },
                 { name: "commonMistakes", label: "Common Student Mistakes" },
