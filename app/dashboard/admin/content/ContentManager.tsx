@@ -42,6 +42,45 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
   const [docText, setDocText] = useState("");
   const [parsedLesson, setParsedLesson] = useState<Record<string, string>>({});
 
+  // Table Builder State
+  const [tableBuilderField, setTableBuilderField] = useState<{ fieldName: string; sectionLabel: string } | null>(null);
+  const [tableCols, setTableCols] = useState("Quantity, Unit, Formula");
+  const [tableRowsText, setTableRowsText] = useState("Speed, m/s, s = d/t\nForce, N, F = ma");
+
+  function insertTableIntoField() {
+    if (!tableBuilderField) return;
+
+    const cols = tableCols.split(",").map((c) => c.trim()).filter(Boolean);
+    if (cols.length === 0) {
+      alert("Please enter at least one column header.");
+      return;
+    }
+
+    const headerLine = `| ${cols.join(" | ")} |`;
+    const separatorLine = `| ${cols.map(() => "---").join(" | ")} |`;
+
+    const rowLines = tableRowsText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const cells = line.split(",").map((c) => c.trim());
+        while (cells.length < cols.length) cells.push("-");
+        return `| ${cells.slice(0, cols.length).join(" | ")} |`;
+      });
+
+    const markdownTable = `\n\n${headerLine}\n${separatorLine}\n${rowLines.join("\n")}\n\n`;
+
+    setEditForm((prev) => ({
+      ...prev,
+      [tableBuilderField.fieldName]: (prev[tableBuilderField.fieldName] || "") + markdownTable,
+    }));
+
+    const label = tableBuilderField.sectionLabel;
+    setTableBuilderField(null);
+    alert(`✓ Table successfully added to ${label}!`);
+  }
+
   function toggleCourseExpand(id: string) {
     setExpandedCourseIds((prev) =>
       prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
@@ -645,13 +684,10 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          const tableTemplate = `\n\n| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| Value 1 | Value 2 | Value 3 |\n\n`;
-                          setEditForm((prev) => ({ ...prev, [f.name]: (prev[f.name] || "") + tableTemplate }));
-                        }}
+                        onClick={() => setTableBuilderField({ fieldName: f.name, sectionLabel: f.label })}
                         className="text-[10px] font-semibold text-brand-700 hover:underline bg-brand-50 px-2 py-0.5 rounded"
                       >
-                        📊 + Table
+                        📊 + Add Table
                       </button>
                     </div>
                   </div>
@@ -681,6 +717,65 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Table Builder Modal */}
+      {tableBuilderField && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-base font-bold text-slate-800">📊 Build Table for {tableBuilderField.sectionLabel}</h3>
+              <button
+                onClick={() => setTableBuilderField(null)}
+                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Column Headers (separated by commas)
+              </label>
+              <input
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono"
+                value={tableCols}
+                onChange={(e) => setTableCols(e.target.value)}
+                placeholder="Quantity, Unit, Formula"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Table Rows (one row per line, values separated by commas)
+              </label>
+              <textarea
+                rows={5}
+                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
+                value={tableRowsText}
+                onChange={(e) => setTableRowsText(e.target.value)}
+                placeholder={`Speed, m/s, s = d/t\nForce, N, F = ma\nMass, kg, m`}
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setTableBuilderField(null)}
+                className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={insertTableIntoField}
+                className="rounded-full bg-brand-700 px-5 py-2 text-xs font-semibold text-white hover:bg-brand-800"
+              >
+                Insert Table into Lesson
+              </button>
+            </div>
           </div>
         </div>
       )}
