@@ -362,13 +362,25 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
                   }}
                 />
                 <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                  <span>File upload:</span>
+                  <span>Upload .docx / .txt file:</span>
                   <input
                     type="file"
-                    accept=".txt,.md,.text"
-                    onChange={(e) => {
+                    accept=".docx,.txt,.md,.text"
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
-                      if (file) {
+                      if (!file) return;
+                      
+                      if (file.name.endsWith(".docx")) {
+                        try {
+                          const mammoth = await import("mammoth");
+                          const arrayBuffer = await file.arrayBuffer();
+                          const result = await mammoth.extractRawText({ arrayBuffer });
+                          setDocText(result.value);
+                          parseDocument(result.value);
+                        } catch (err) {
+                          alert("Could not read .docx file. Try copying and pasting the text directly.");
+                        }
+                      } else {
                         const reader = new FileReader();
                         reader.onload = (event) => {
                           const text = event.target?.result as string;
