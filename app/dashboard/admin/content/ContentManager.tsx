@@ -39,7 +39,8 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
 
   // Document Import state
   const [importTopicId, setImportTopicId] = useState("");
-  const [docText, setDocText] = useState("");
+  const [importParsing, setImportParsing] = useState(false);
+  const [importHtml, setImportHtml] = useState(""); // Full HTML extracted from Word/PDF
   const [parsedLesson, setParsedLesson] = useState<Record<string, string>>({});
 
   // Table Builder State
@@ -79,6 +80,107 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
     const label = tableBuilderField.sectionLabel;
     setTableBuilderField(null);
     alert(`✓ Table successfully added to ${label}!`);
+  }
+
+  // Split HTML by heading tags into lesson sections
+  function splitHtmlBySections(html: string): Record<string, string> {
+    const result: Record<string, string> = {
+      title: "",
+      objectives: "",
+      introduction: "",
+      definitions: "",
+      explanation: "",
+      workedExamples: "",
+      realLifeApplications: "",
+      commonMistakes: "",
+      summary: "",
+      practiceQuestions: "",
+    };
+
+    // Extract first h1/title as lesson title
+    const titleMatch = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
+    if (titleMatch) {
+      result.title = titleMatch[1].replace(/<[^>]+>/g, "").trim();
+    }
+
+    function detectSectionKey(heading: string): string | null {
+      const clean = heading.toLowerCase().replace(/<[^>]+>/g, "").trim();
+      if (clean.includes("objective") || clean.includes("goal")) return "objectives";
+      if (clean.includes("intro")) return "introduction";
+      if (clean.includes("definit") || clean.includes("key term") || clean.includes("vocabulary")) return "definitions";
+      if (clean.includes("explain") || clean.includes("detail") || clean.includes("theory") || clean.includes("note") || clean.includes("content")) return "explanation";
+      if (clean.includes("worked") || clean.includes("example") || clean.includes("solution") || clean.includes("sample")) return "workedExamples";
+      if (clean.includes("application") || clean.includes("real")) return "realLifeApplications";
+      if (clean.includes("mistake") || clean.includes("error") || clean.includes("common")) return "commonMistakes";
+      if (clean.includes("summary") || clean.includes("recap") || clean.includes("takeaway")) return "summary";
+      if (clean.includes("practice") || clean.includes("question") || clean.includes("quiz") || clean.includes("exercise")) return "practiceQuestions";
+      return null;
+    }
+
+    // Split HTML by h2/h3 headings
+    const parts = html.split(/(?=<h[2-4][^>]*>)/i);
+    let hasAssignedAnySections = false;
+
+    for (const part of parts) {
+      const headingMatch = part.match(/<h[2-4][^>]*>(.*?)<\/h[2-4]>/i);
+      if (headingMatch) {
+        const key = detectSectionKey(headingMatch[1]);
+        const bodyHtml = part.replace(/<h[2-4][^>]*>.*?<\/h[2-4]>/i, "").trim();
+        if (key && bodyHtml) {
+          result[key] = (result[key] ? result[key] + "\n" : "") + bodyHtml;
+          hasAssignedAnySections = true;
+        }
+      }
+    }
+
+    // If no headings detected, put everything (except h1) into explanation
+    if (!hasAssignedAnySections) {
+      const withoutH1 = html.replace(/<h1[^>]*>.*?<\/h1>/gi, "").trim();
+      result.explanation = withoutH1;
+    }
+
+    return result;
+  }
+
+  async function handleFileUpload(file: File) {
+    setImportParsing(true);
+    setImportHtml("");
+    setParsedLesson({});
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/admin/parse-document", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to parse document.");
+        return;
+      }
+
+      let html = "";
+      if (data.type === "html") {
+        html = data.content;
+      } else {
+        // Convert plain text to minimal HTML preserving line breaks
+        html = data.content
+          .split("\n")
+          .map((line: string) => (line.trim() ? `<p>${line.trim()}</p>` : ""))
+          .join("\n");
+      }
+
+      setImportHtml(html);
+      const sections = splitHtmlBySections(html);
+      setParsedLesson(sections);
+    } catch (err) {
+      alert("Could not read the file. Please try again.");
+    } finally {
+      setImportParsing(false);
+    }
   }
 
   function toggleCourseExpand(id: string) {
@@ -262,14 +364,13 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
     setParsedLesson(result);
   }
 
-  async function handleImportSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleImportSubmit() {
     if (!importTopicId) {
       alert("Please select a topic for this lesson.");
       return;
     }
     if (!parsedLesson.title) {
-      alert("Please enter or parse a lesson title.");
+      alert("Please enter a lesson title.");
       return;
     }
 
@@ -280,8 +381,9 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
       isPublished: true,
     });
 
-    setDocText("");
+    setImportHtml("");
     setParsedLesson({});
+    setImportTopicId("");
   }
 
   return (
@@ -395,9 +497,9 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
         {tab === "doc-import" && (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
             <div>
-              <h3 className="text-lg font-bold text-slate-800">📄 Import Word / PDF Document Lesson</h3>
+              <h3 className="text-lg font-bold text-slate-800">📄 Import Word / PDF Document</h3>
               <p className="text-xs text-slate-500 mt-1">
-                Copy text from your Word document or PDF file and paste it below. You can include tables (e.g. <code>| Col 1 | Col 2 |</code> or HTML <code>&lt;table&gt;</code>) and diagrams (<code>![Diagram](image_url)</code>).
+                Upload your <strong>.docx</strong> (Word) or <strong>.pdf</strong> file. Tables, diagrams, bold text, and headings will be preserved automatically. The app will detect lesson sections and assign them correctly.
               </p>
             </div>
 
@@ -420,92 +522,98 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
               </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                  Paste Document / Word Text
-                </label>
-                <textarea
-                  rows={14}
-                  placeholder={`Title: Speed, Velocity and Acceleration\n\nObjectives:\n1. Define speed and velocity.\n2. Calculate acceleration.\n\nExplanation:\nSpeed is distance divided by time.\n| Quantity | Unit | Formula |\n| Speed | m/s | s = d/t |\n\nWorked Examples:\nA car travels 100m in 5s. Calculate speed:\nSpeed = 100/5 = 20 m/s`}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
-                  value={docText}
-                  onChange={(e) => {
-                    setDocText(e.target.value);
-                    parseDocument(e.target.value);
-                  }}
-                />
-                <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                  <span>Upload .docx / .txt file:</span>
-                  <input
-                    type="file"
-                    accept=".docx,.txt,.md,.text"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      
-                      if (file.name.endsWith(".docx")) {
-                        try {
-                          const mammoth = await import("mammoth");
-                          const arrayBuffer = await file.arrayBuffer();
-                          const result = await mammoth.extractRawText({ arrayBuffer });
-                          setDocText(result.value);
-                          parseDocument(result.value);
-                        } catch (err) {
-                          alert("Could not read .docx file. Try copying and pasting the text directly.");
-                        }
-                      } else {
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                          const text = event.target?.result as string;
-                          setDocText(text);
-                          parseDocument(text);
-                        };
-                        reader.readAsText(file);
-                      }
-                    }}
-                    className="text-xs"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
-                  Extracted Lesson Preview
-                </label>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs space-y-3 max-h-[350px] overflow-y-auto">
-                  <div>
-                    <span className="font-bold text-slate-700">Title:</span> {parsedLesson.title || "(Not detected)"}
-                  </div>
-                  {parsedLesson.objectives && (
-                    <div>
-                      <span className="font-bold text-slate-700">Objectives:</span>
-                      <p className="whitespace-pre-line text-slate-600 mt-0.5">{parsedLesson.objectives}</p>
-                    </div>
-                  )}
-                  {parsedLesson.explanation && (
-                    <div>
-                      <span className="font-bold text-slate-700">Explanation:</span>
-                      <p className="whitespace-pre-line text-slate-600 mt-0.5">{parsedLesson.explanation}</p>
-                    </div>
-                  )}
-                  {parsedLesson.workedExamples && (
-                    <div>
-                      <span className="font-bold text-slate-700">Worked Examples:</span>
-                      <p className="whitespace-pre-line text-slate-600 mt-0.5">{parsedLesson.workedExamples}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div className="rounded-xl border-2 border-dashed border-brand-200 bg-brand-50 p-8 text-center">
+              <div className="text-4xl mb-3">📂</div>
+              <p className="text-sm font-semibold text-brand-800 mb-1">Upload your Word or PDF file</p>
+              <p className="text-xs text-slate-500 mb-4">Supports .docx (Word), .pdf, and .txt files — tables and images will be preserved</p>
+              <input
+                type="file"
+                accept=".docx,.pdf,.txt,.md"
+                disabled={importParsing}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) await handleFileUpload(file);
+                }}
+                className="block mx-auto text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-700 file:text-white hover:file:bg-brand-800 cursor-pointer"
+              />
+              {importParsing && (
+                <p className="mt-4 text-sm text-brand-700 font-medium animate-pulse">⏳ Parsing document... please wait</p>
+              )}
             </div>
 
-            <button
-              onClick={handleImportSubmit}
-              disabled={loading || !parsedLesson.title}
-              className="w-full rounded-full bg-brand-700 py-3 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
-            >
-              {loading ? "Importing Lesson..." : "📥 Import Lesson into Selected Topic"}
-            </button>
+            {importHtml && (
+              <div className="space-y-6">
+                {/* Detected lesson title */}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Lesson Title (detected)</label>
+                  <input
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold"
+                    value={parsedLesson.title || ""}
+                    onChange={(e) => setParsedLesson((p) => ({ ...p, title: e.target.value }))}
+                    placeholder="Enter lesson title..."
+                  />
+                </div>
+
+                {/* Full document preview with HTML rendering */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">📄 Full Document Preview (with tables & images)</label>
+                    <span className="text-[10px] text-slate-400">Scroll to verify content before importing</span>
+                  </div>
+                  <div
+                    className="rounded-xl border border-slate-200 bg-white p-5 max-h-80 overflow-y-auto text-sm text-slate-700 leading-relaxed
+                      prose prose-slate max-w-none
+                      [&_table]:w-full [&_table]:border-collapse [&_table]:my-3
+                      [&_th]:border [&_th]:border-slate-300 [&_th]:bg-slate-100 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:text-slate-800
+                      [&_td]:border [&_td]:border-slate-200 [&_td]:px-3 [&_td]:py-2 [&_td]:text-slate-700
+                      [&_img]:my-3 [&_img]:max-h-72 [&_img]:rounded-xl [&_img]:border [&_img]:border-slate-200
+                      [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2
+                      [&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-1 [&_h2]:text-brand-800
+                      [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1
+                      [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5
+                      [&_strong]:font-semibold [&_em]:italic"
+                    dangerouslySetInnerHTML={{ __html: importHtml }}
+                  />
+                </div>
+
+                {/* Detected sections - editable */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">✏️ Detected Lesson Sections (Edit if needed)</p>
+                  <div className="space-y-3">
+                    {[
+                      { key: "objectives", label: "Learning Objectives" },
+                      { key: "introduction", label: "Introduction" },
+                      { key: "definitions", label: "Definitions & Key Terms" },
+                      { key: "explanation", label: "Detailed Explanation & Tables" },
+                      { key: "workedExamples", label: "Worked Examples" },
+                      { key: "realLifeApplications", label: "Real-Life Applications" },
+                      { key: "commonMistakes", label: "Common Mistakes" },
+                      { key: "summary", label: "Summary" },
+                      { key: "practiceQuestions", label: "Practice Questions" },
+                    ].map((f) => (
+                      <div key={f.key}>
+                        <label className="block text-xs font-semibold text-slate-600 mb-0.5">{f.label}</label>
+                        <textarea
+                          rows={parsedLesson[f.key] ? 4 : 2}
+                          placeholder={`No content detected for ${f.label}. You can type or paste it here...`}
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono text-slate-700"
+                          value={parsedLesson[f.key] || ""}
+                          onChange={(e) => setParsedLesson((p) => ({ ...p, [f.key]: e.target.value }))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleImportSubmit}
+                  disabled={loading || !parsedLesson.title || !importTopicId}
+                  className="w-full rounded-full bg-brand-700 py-3 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+                >
+                  {loading ? "Importing Lesson..." : "📥 Import Lesson into Selected Topic"}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
