@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import VideoPlayer from "@/components/VideoPlayer";
 import MarkCompleteButton from "@/components/MarkCompleteButton";
+import FormattedContent from "@/components/FormattedContent";
 import { hasAccessToSubject } from "@/lib/subscription";
 
 export default async function LessonPage({ params }: { params: { lessonId: string } }) {
@@ -87,7 +88,7 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
           s.content ? (
             <section key={s.label}>
               <h2 className="mb-2 font-semibold text-slate-800">{s.label}</h2>
-              <div className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{s.content}</div>
+              <FormattedContent content={s.content} />
             </section>
           ) : null
         )}
@@ -98,7 +99,7 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
               s.content ? (
                 <section key={s.label}>
                   <h2 className="mb-2 font-semibold text-slate-800">{s.label}</h2>
-                  <div className="whitespace-pre-line text-sm leading-relaxed text-slate-700">{s.content}</div>
+                  <FormattedContent content={s.content} />
                 </section>
               ) : null
             )}

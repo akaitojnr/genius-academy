@@ -28,14 +28,19 @@ type Course = { id: string; classLevel: string; subject: Subject; topics: Topic[
 
 export default function ContentManager({ subjects, courses }: { subjects: Subject[]; courses: Course[] }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"subject" | "course" | "topic" | "lesson">("subject");
+  const [tab, setTab] = useState<"subject" | "course" | "topic" | "lesson" | "doc-import">("subject");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Editing state
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
-  const [expandedCourseIds, setExpandedCourseIds] = useState<string[]>(courses.map(c => c.id));
+  const [expandedCourseIds, setExpandedCourseIds] = useState<string[]>(courses.map((c) => c.id));
+
+  // Document Import state
+  const [importTopicId, setImportTopicId] = useState("");
+  const [docText, setDocText] = useState("");
+  const [parsedLesson, setParsedLesson] = useState<Record<string, string>>({});
 
   function toggleCourseExpand(id: string) {
     setExpandedCourseIds((prev) =>
@@ -134,18 +139,99 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
     }
   }
 
+  // Parse Word / Document text into lesson fields
+  function parseDocument(rawText: string) {
+    const result: Record<string, string> = {
+      title: "",
+      objectives: "",
+      introduction: "",
+      explanation: "",
+      definitions: "",
+      workedExamples: "",
+      realLifeApplications: "",
+      commonMistakes: "",
+      summary: "",
+      practiceQuestions: "",
+    };
+
+    const sectionRegex =
+      /(?:^|\n)(Title|Objectives|Learning Objectives|Introduction|Explanation|Detailed Explanation|Definitions|Worked Examples|Real-life Applications|Applications|Common Mistakes|Summary|Practice Questions):/gi;
+
+    const matches = Array.from(rawText.matchAll(sectionRegex));
+
+    if (matches.length === 0) {
+      // If no explicit tags, put first line as title and rest as explanation
+      const lines = rawText.trim().split("\n");
+      result.title = lines[0] || "Imported Lesson";
+      result.explanation = lines.slice(1).join("\n").trim();
+    } else {
+      for (let i = 0; i < matches.length; i++) {
+        const match = matches[i];
+        const tag = match[1].toLowerCase();
+        const startIdx = match.index! + match[0].length;
+        const endIdx = i + 1 < matches.length ? matches[i + 1].index! : rawText.length;
+        const content = rawText.slice(startIdx, endIdx).trim();
+
+        if (tag.includes("title")) result.title = content;
+        else if (tag.includes("objective")) result.objectives = content;
+        else if (tag.includes("intro")) result.introduction = content;
+        else if (tag.includes("explain") || tag.includes("explanation")) result.explanation = content;
+        else if (tag.includes("definit")) result.definitions = content;
+        else if (tag.includes("worked") || tag.includes("example")) result.workedExamples = content;
+        else if (tag.includes("appli") || tag.includes("real-life")) result.realLifeApplications = content;
+        else if (tag.includes("mistake")) result.commonMistakes = content;
+        else if (tag.includes("summary")) result.summary = content;
+        else if (tag.includes("practice") || tag.includes("question")) result.practiceQuestions = content;
+      }
+    }
+
+    setParsedLesson(result);
+  }
+
+  async function handleImportSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!importTopicId) {
+      alert("Please select a topic for this lesson.");
+      return;
+    }
+    if (!parsedLesson.title) {
+      alert("Please enter or parse a lesson title.");
+      return;
+    }
+
+    await post("/api/admin/lessons", {
+      topicId: importTopicId,
+      ...parsedLesson,
+      order: 0,
+      isPublished: true,
+    });
+
+    setDocText("");
+    setParsedLesson({});
+  }
+
   return (
     <div className="mt-6">
-      <div className="flex gap-2 border-b border-slate-200">
-        {(["subject", "course", "topic", "lesson"] as const).map((t) => (
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-1">
+        {(
+          [
+            { id: "subject", label: "Add Subject" },
+            { id: "course", label: "Add Course" },
+            { id: "topic", label: "Add Topic" },
+            { id: "lesson", label: "Add Manual Lesson" },
+            { id: "doc-import", label: "📄 Import Word / Doc" },
+          ] as const
+        ).map((t) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium capitalize ${
-              tab === t ? "border-b-2 border-brand-700 text-brand-700" : "text-slate-500"
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition ${
+              tab === t.id
+                ? "border-b-2 border-brand-700 bg-brand-50 text-brand-800 font-semibold"
+                : "text-slate-500 hover:text-slate-800"
             }`}
           >
-            Add New {t}
+            {t.label}
           </button>
         ))}
       </div>
@@ -230,6 +316,111 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
             }}
             loading={loading}
           />
+        )}
+
+        {tab === "doc-import" && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">📄 Import Word / PDF Document Lesson</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Copy text from your Word document or PDF file and paste it below. You can include tables (e.g. <code>| Col 1 | Col 2 |</code> or HTML <code>&lt;table&gt;</code>) and diagrams (<code>![Diagram](image_url)</code>).
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Select Target Topic *</label>
+              <select
+                required
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                value={importTopicId}
+                onChange={(e) => setImportTopicId(e.target.value)}
+              >
+                <option value="" disabled>Select a Topic...</option>
+                {courses.flatMap((c) =>
+                  c.topics.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {c.subject.name} ({c.classLevel}) — {t.title}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                  Paste Document / Word Text
+                </label>
+                <textarea
+                  rows={14}
+                  placeholder={`Title: Speed, Velocity and Acceleration\n\nObjectives:\n1. Define speed and velocity.\n2. Calculate acceleration.\n\nExplanation:\nSpeed is distance divided by time.\n| Quantity | Unit | Formula |\n| Speed | m/s | s = d/t |\n\nWorked Examples:\nA car travels 100m in 5s. Calculate speed:\nSpeed = 100/5 = 20 m/s`}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
+                  value={docText}
+                  onChange={(e) => {
+                    setDocText(e.target.value);
+                    parseDocument(e.target.value);
+                  }}
+                />
+                <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                  <span>File upload:</span>
+                  <input
+                    type="file"
+                    accept=".txt,.md,.text"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          const text = event.target?.result as string;
+                          setDocText(text);
+                          parseDocument(text);
+                        };
+                        reader.readAsText(file);
+                      }
+                    }}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                  Extracted Lesson Preview
+                </label>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs space-y-3 max-h-[350px] overflow-y-auto">
+                  <div>
+                    <span className="font-bold text-slate-700">Title:</span> {parsedLesson.title || "(Not detected)"}
+                  </div>
+                  {parsedLesson.objectives && (
+                    <div>
+                      <span className="font-bold text-slate-700">Objectives:</span>
+                      <p className="whitespace-pre-line text-slate-600 mt-0.5">{parsedLesson.objectives}</p>
+                    </div>
+                  )}
+                  {parsedLesson.explanation && (
+                    <div>
+                      <span className="font-bold text-slate-700">Explanation:</span>
+                      <p className="whitespace-pre-line text-slate-600 mt-0.5">{parsedLesson.explanation}</p>
+                    </div>
+                  )}
+                  {parsedLesson.workedExamples && (
+                    <div>
+                      <span className="font-bold text-slate-700">Worked Examples:</span>
+                      <p className="whitespace-pre-line text-slate-600 mt-0.5">{parsedLesson.workedExamples}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleImportSubmit}
+              disabled={loading || !parsedLesson.title}
+              className="w-full rounded-full bg-brand-700 py-3 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+            >
+              {loading ? "Importing Lesson..." : "📥 Import Lesson into Selected Topic"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -380,7 +571,7 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
               {[
                 { name: "objectives", label: "Learning Objectives" },
                 { name: "introduction", label: "Introduction" },
-                { name: "explanation", label: "Detailed Explanation" },
+                { name: "explanation", label: "Detailed Explanation & Tables" },
                 { name: "definitions", label: "Definitions & Key Terms" },
                 { name: "workedExamples", label: "Worked Examples & Solutions" },
                 { name: "realLifeApplications", label: "Real-Life Applications" },
