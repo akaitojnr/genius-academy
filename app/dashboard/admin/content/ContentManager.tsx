@@ -139,14 +139,14 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
     }
   }
 
-  // Parse Word / Document text into lesson fields
+  // Parse Word / Document text into lesson fields smartly line-by-line
   function parseDocument(rawText: string) {
     const result: Record<string, string> = {
       title: "",
       objectives: "",
       introduction: "",
-      explanation: "",
       definitions: "",
+      explanation: "",
       workedExamples: "",
       realLifeApplications: "",
       commonMistakes: "",
@@ -154,36 +154,71 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
       practiceQuestions: "",
     };
 
-    const sectionRegex =
-      /(?:^|\n)(Title|Objectives|Learning Objectives|Introduction|Explanation|Detailed Explanation|Definitions|Worked Examples|Real-life Applications|Applications|Common Mistakes|Summary|Practice Questions):/gi;
+    const lines = rawText.split("\n");
+    let currentSection: string | null = null;
+    const sectionBuffers: Record<string, string[]> = {
+      title: [],
+      objectives: [],
+      introduction: [],
+      definitions: [],
+      explanation: [],
+      workedExamples: [],
+      realLifeApplications: [],
+      commonMistakes: [],
+      summary: [],
+      practiceQuestions: [],
+    };
 
-    const matches = Array.from(rawText.matchAll(sectionRegex));
+    function detectHeading(line: string): string | null {
+      const clean = line
+        .trim()
+        .replace(/^[\#\*\d\.\-\:]+/, "") // Remove leading numbers, #, *, dots, dashes
+        .replace(/[\:\-\=\*]+$/, "") // Remove trailing colons, dashes
+        .trim()
+        .toLowerCase();
 
-    if (matches.length === 0) {
-      // If no explicit tags, put first line as title and rest as explanation
-      const lines = rawText.trim().split("\n");
-      result.title = lines[0] || "Imported Lesson";
-      result.explanation = lines.slice(1).join("\n").trim();
-    } else {
-      for (let i = 0; i < matches.length; i++) {
-        const match = matches[i];
-        const tag = match[1].toLowerCase();
-        const startIdx = match.index! + match[0].length;
-        const endIdx = i + 1 < matches.length ? matches[i + 1].index! : rawText.length;
-        const content = rawText.slice(startIdx, endIdx).trim();
+      if (!clean) return null;
 
-        if (tag.includes("title")) result.title = content;
-        else if (tag.includes("objective")) result.objectives = content;
-        else if (tag.includes("intro")) result.introduction = content;
-        else if (tag.includes("explain") || tag.includes("explanation")) result.explanation = content;
-        else if (tag.includes("definit")) result.definitions = content;
-        else if (tag.includes("worked") || tag.includes("example")) result.workedExamples = content;
-        else if (tag.includes("appli") || tag.includes("real-life")) result.realLifeApplications = content;
-        else if (tag.includes("mistake")) result.commonMistakes = content;
-        else if (tag.includes("summary")) result.summary = content;
-        else if (tag.includes("practice") || tag.includes("question")) result.practiceQuestions = content;
+      if (/^(title|lesson title|topic title)$/i.test(clean) || clean.startsWith("title")) return "title";
+      if (/^(learning objectives|objectives|objective|goals)$/i.test(clean) || clean.startsWith("objective")) return "objectives";
+      if (/^(introduction|intro)$/i.test(clean) || clean.startsWith("intro")) return "introduction";
+      if (/^(definitions|definition|key terms|definitions & key terms|definitions and key terms|vocabulary)$/i.test(clean) || clean.includes("definit") || clean.includes("key terms")) return "definitions";
+      if (/^(detailed explanation|explanation|detailed explanation & tables|explanation & tables|lesson content|body)$/i.test(clean) || clean.includes("explain") || clean.includes("explanation")) return "explanation";
+      if (/^(worked examples|worked examples & solutions|examples|examples & solutions|step-by-step solutions)$/i.test(clean) || clean.includes("worked example") || clean.includes("sample problem")) return "workedExamples";
+      if (/^(real-life applications|applications|real life applications|real life application)$/i.test(clean) || clean.includes("application")) return "realLifeApplications";
+      if (/^(common mistakes|common student mistakes|mistakes to avoid|common errors)$/i.test(clean) || clean.includes("mistake") || clean.includes("errors to avoid")) return "commonMistakes";
+      if (/^(summary|recap|key takeaways|conclusion)$/i.test(clean) || clean.startsWith("summary")) return "summary";
+      if (/^(practice questions|questions|quiz|exercise|practice exercises|self test)$/i.test(clean) || clean.includes("practice question") || clean.includes("exercises")) return "practiceQuestions";
+
+      return null;
+    }
+
+    for (let line of lines) {
+      const heading = detectHeading(line);
+      if (heading) {
+        currentSection = heading;
+        const colonIdx = line.indexOf(":");
+        if (colonIdx !== -1) {
+          const inlineText = line.slice(colonIdx + 1).trim();
+          if (inlineText) {
+            sectionBuffers[heading].push(inlineText);
+          }
+        }
+      } else {
+        if (!currentSection) {
+          if (line.trim() && sectionBuffers.title.length === 0) {
+            sectionBuffers.title.push(line.trim());
+            currentSection = "title";
+          }
+        } else {
+          sectionBuffers[currentSection].push(line);
+        }
       }
     }
+
+    Object.keys(sectionBuffers).forEach((key) => {
+      result[key] = sectionBuffers[key].join("\n").trim();
+    });
 
     setParsedLesson(result);
   }
