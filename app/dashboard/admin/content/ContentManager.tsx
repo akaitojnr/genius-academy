@@ -32,9 +32,7 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Editing state
-  const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
-  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  // Expanded courses state
   const [expandedCourseIds, setExpandedCourseIds] = useState<string[]>(courses.map((c) => c.id));
 
   // Document Import state
@@ -42,45 +40,6 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
   const [importParsing, setImportParsing] = useState(false);
   const [importHtml, setImportHtml] = useState(""); // Full HTML extracted from Word/PDF
   const [parsedLesson, setParsedLesson] = useState<Record<string, string>>({});
-
-  // Table Builder State
-  const [tableBuilderField, setTableBuilderField] = useState<{ fieldName: string; sectionLabel: string } | null>(null);
-  const [tableCols, setTableCols] = useState("Quantity, Unit, Formula");
-  const [tableRowsText, setTableRowsText] = useState("Speed, m/s, s = d/t\nForce, N, F = ma");
-
-  function insertTableIntoField() {
-    if (!tableBuilderField) return;
-
-    const cols = tableCols.split(",").map((c) => c.trim()).filter(Boolean);
-    if (cols.length === 0) {
-      alert("Please enter at least one column header.");
-      return;
-    }
-
-    const headerLine = `| ${cols.join(" | ")} |`;
-    const separatorLine = `| ${cols.map(() => "---").join(" | ")} |`;
-
-    const rowLines = tableRowsText
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const cells = line.split(",").map((c) => c.trim());
-        while (cells.length < cols.length) cells.push("-");
-        return `| ${cells.slice(0, cols.length).join(" | ")} |`;
-      });
-
-    const markdownTable = `\n\n${headerLine}\n${separatorLine}\n${rowLines.join("\n")}\n\n`;
-
-    setEditForm((prev) => ({
-      ...prev,
-      [tableBuilderField.fieldName]: (prev[tableBuilderField.fieldName] || "") + markdownTable,
-    }));
-
-    const label = tableBuilderField.sectionLabel;
-    setTableBuilderField(null);
-    alert(`✓ Table successfully added to ${label}!`);
-  }
 
   // Split HTML by heading tags OR <p><strong>Heading:</strong></p> into lesson sections
   function splitHtmlBySections(html: string): Record<string, string> {
@@ -238,55 +197,7 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
     }
   }
 
-  function openEditModal(lesson: Lesson) {
-    setEditingLesson(lesson);
-    setEditForm({
-      title: lesson.title || "",
-      objectives: lesson.objectives || "",
-      introduction: lesson.introduction || "",
-      explanation: lesson.explanation || "",
-      definitions: lesson.definitions || "",
-      workedExamples: lesson.workedExamples || "",
-      realLifeApplications: lesson.realLifeApplications || "",
-      commonMistakes: lesson.commonMistakes || "",
-      summary: lesson.summary || "",
-      practiceQuestions: lesson.practiceQuestions || "",
-      videoUrl: lesson.video?.url || "",
-      teacherName: lesson.video?.teacherName || "",
-    });
-  }
 
-  async function handleUpdateLesson(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editingLesson) return;
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const { videoUrl, teacherName, ...rest } = editForm;
-      const res = await fetch(`/api/admin/lessons/${editingLesson.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...rest,
-          ...(videoUrl ? { video: { url: videoUrl, teacherName } } : {}),
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || "Failed to update lesson");
-        return;
-      }
-      setMessage("Lesson updated successfully.");
-      setEditingLesson(null);
-      router.refresh();
-    } catch {
-      alert("Network error updating lesson.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleDeleteLesson(lessonId: string, title: string) {
     if (!confirm(`Are you sure you want to delete lesson "${title}"?`)) return;
@@ -709,21 +620,16 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
                                       href={`/lessons/${l.id}`}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-1"
                                     >
-                                      👁️ View
+                                      👁️ View Lesson
                                     </a>
                                     <button
-                                      onClick={() => openEditModal(l)}
-                                      className="rounded-lg bg-brand-700 px-3 py-1 text-xs font-medium text-white hover:bg-brand-800"
-                                    >
-                                      ✏️ Edit Lesson
-                                    </button>
-                                    <button
                                       onClick={() => handleDeleteLesson(l.id, l.title)}
-                                      className="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100"
+                                      className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 flex items-center gap-1"
+                                      title="Delete Lesson"
                                     >
-                                      🗑️
+                                      🗑️ Delete
                                     </button>
                                   </div>
                                 </div>
@@ -740,179 +646,6 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
           })}
         </div>
       </div>
-
-      {/* Edit Lesson Modal */}
-      {editingLesson && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="my-8 w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="text-lg font-bold text-slate-800">Edit Lesson: {editingLesson.title}</h3>
-              <button
-                onClick={() => setEditingLesson(null)}
-                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateLesson} className="mt-4 space-y-4 max-h-[75vh] overflow-y-auto pr-2">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Lesson Title</label>
-                <input
-                  required
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                  value={editForm.title || ""}
-                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Video URL (optional)</label>
-                  <input
-                    type="url"
-                    placeholder="https://youtube.com/..."
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    value={editForm.videoUrl || ""}
-                    onChange={(e) => setEditForm({ ...editForm, videoUrl: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">Teacher Name</label>
-                  <input
-                    placeholder="Mr. Shedrach Makama"
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    value={editForm.teacherName || ""}
-                    onChange={(e) => setEditForm({ ...editForm, teacherName: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {[
-                { name: "objectives", label: "Learning Objectives" },
-                { name: "introduction", label: "Introduction" },
-                { name: "definitions", label: "Definitions & Key Terms" },
-                { name: "explanation", label: "Detailed Explanation & Tables" },
-                { name: "workedExamples", label: "Worked Examples & Solutions" },
-                { name: "realLifeApplications", label: "Real-Life Applications" },
-                { name: "commonMistakes", label: "Common Student Mistakes" },
-                { name: "summary", label: "Summary" },
-                { name: "practiceQuestions", label: "Practice Questions" },
-              ].map((f) => (
-                <div key={f.name}>
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">{f.label}</label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const url = prompt("Enter Diagram / Image URL (e.g. https://...):");
-                          if (!url) return;
-                          const caption = prompt("Enter Diagram Title / Caption (optional):", "Diagram") || "Diagram";
-                          const imgMarkdown = `\n\n![${caption}](${url})\n\n`;
-                          setEditForm((prev) => ({ ...prev, [f.name]: (prev[f.name] || "") + imgMarkdown }));
-                        }}
-                        className="text-[10px] font-semibold text-brand-700 hover:underline bg-brand-50 px-2 py-0.5 rounded"
-                      >
-                        🖼️ + Diagram
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTableBuilderField({ fieldName: f.name, sectionLabel: f.label })}
-                        className="text-[10px] font-semibold text-brand-700 hover:underline bg-brand-50 px-2 py-0.5 rounded"
-                      >
-                        📊 + Add Table
-                      </button>
-                    </div>
-                  </div>
-                  <textarea
-                    rows={3}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                    value={editForm[f.name] || ""}
-                    onChange={(e) => setEditForm({ ...editForm, [f.name]: e.target.value })}
-                  />
-                </div>
-              ))}
-
-              <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setEditingLesson(null)}
-                  className="rounded-full border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="rounded-full bg-brand-700 px-6 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
-                >
-                  {loading ? "Updating..." : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Interactive Table Builder Modal */}
-      {tableBuilderField && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="text-base font-bold text-slate-800">📊 Build Table for {tableBuilderField.sectionLabel}</h3>
-              <button
-                onClick={() => setTableBuilderField(null)}
-                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                Column Headers (separated by commas)
-              </label>
-              <input
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono"
-                value={tableCols}
-                onChange={(e) => setTableCols(e.target.value)}
-                placeholder="Quantity, Unit, Formula"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-                Table Rows (one row per line, values separated by commas)
-              </label>
-              <textarea
-                rows={5}
-                className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
-                value={tableRowsText}
-                onChange={(e) => setTableRowsText(e.target.value)}
-                placeholder={`Speed, m/s, s = d/t\nForce, N, F = ma\nMass, kg, m`}
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setTableBuilderField(null)}
-                className="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={insertTableIntoField}
-                className="rounded-full bg-brand-700 px-5 py-2 text-xs font-semibold text-white hover:bg-brand-800"
-              >
-                Insert Table into Lesson
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
