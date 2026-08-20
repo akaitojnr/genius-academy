@@ -82,7 +82,7 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
     alert(`✓ Table successfully added to ${label}!`);
   }
 
-  // Split HTML by heading tags into lesson sections
+  // Split HTML by heading tags OR <p><strong>Heading:</strong></p> into lesson sections
   function splitHtmlBySections(html: string): Record<string, string> {
     const result: Record<string, string> = {
       title: "",
@@ -97,14 +97,9 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
       practiceQuestions: "",
     };
 
-    // Extract first h1/title as lesson title
-    const titleMatch = html.match(/<h1[^>]*>(.*?)<\/h1>/i);
-    if (titleMatch) {
-      result.title = titleMatch[1].replace(/<[^>]+>/g, "").trim();
-    }
-
-    function detectSectionKey(heading: string): string | null {
-      const clean = heading.toLowerCase().replace(/<[^>]+>/g, "").trim();
+    function detectSectionKey(text: string): string | null {
+      const clean = text.toLowerCase().replace(/<[^>]+>/g, "").replace(/[\:\-\=\*]+/g, "").trim();
+      if (clean.startsWith("title") || clean.includes("lesson title")) return "title";
       if (clean.includes("objective") || clean.includes("goal")) return "objectives";
       if (clean.includes("intro")) return "introduction";
       if (clean.includes("definit") || clean.includes("key term") || clean.includes("vocabulary")) return "definitions";
@@ -117,26 +112,42 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
       return null;
     }
 
-    // Split HTML by h2/h3 headings
-    const parts = html.split(/(?=<h[2-4][^>]*>)/i);
-    let hasAssignedAnySections = false;
+    // Regex to split on <h1-h4> OR <p><strong>Heading:</strong></p> OR <p><b>Heading:</b></p>
+    const sectionSplitter = /(?=<h[1-4][^>]*>|<p>\s*<(?:strong|b)>\s*(?:Title|Objectives|Learning Objectives|Introduction|Intro|Definitions|Key Terms|Definitions &amp; Key Terms|Definitions & Key Terms|Detail Explanation|Detailed Explanation|Explanation|Worked Examples|Examples|Real-Life Applications|Applications|Common Mistakes|Summary|Practice Questions)[^<]*<\/(?:strong|b)>\s*<\/p>)/gi;
+
+    const parts = html.split(sectionSplitter);
 
     for (const part of parts) {
-      const headingMatch = part.match(/<h[2-4][^>]*>(.*?)<\/h[2-4]>/i);
+      if (!part.trim()) continue;
+
+      const headingMatch = part.match(/^(?:<h[1-4][^>]*>(.*?)<\/h[1-4]>|<p>\s*<(?:strong|b)>\s*(.*?)\s*<\/(?:strong|b)>\s*<\/p>)/i);
+
       if (headingMatch) {
-        const key = detectSectionKey(headingMatch[1]);
-        const bodyHtml = part.replace(/<h[2-4][^>]*>.*?<\/h[2-4]>/i, "").trim();
-        if (key && bodyHtml) {
-          result[key] = (result[key] ? result[key] + "\n" : "") + bodyHtml;
-          hasAssignedAnySections = true;
+        const rawHeading = headingMatch[1] || headingMatch[2] || "";
+        const key = detectSectionKey(rawHeading);
+        const bodyContent = part.replace(headingMatch[0], "").trim();
+
+        if (key === "title") {
+          const cleanTitle = rawHeading.replace(/^Title:\s*/i, "").replace(/<[^>]+>/g, "").trim() || bodyContent.replace(/<[^>]+>/g, "").trim();
+          if (cleanTitle) result.title = cleanTitle;
+        } else if (key) {
+          result[key] = (result[key] ? result[key] + "\n" : "") + (bodyContent || rawHeading);
+        }
+      } else {
+        if (!result.explanation) {
+          result.explanation = part.trim();
+        } else {
+          result.explanation += "\n" + part.trim();
         }
       }
     }
 
-    // If no headings detected, put everything (except h1) into explanation
-    if (!hasAssignedAnySections) {
-      const withoutH1 = html.replace(/<h1[^>]*>.*?<\/h1>/gi, "").trim();
-      result.explanation = withoutH1;
+    // Fallback for title if not assigned
+    if (!result.title) {
+      const firstLineMatch = html.match(/Title:\s*([^\n<]+)/i);
+      if (firstLineMatch) {
+        result.title = firstLineMatch[1].replace(/<[^>]+>/g, "").trim();
+      }
     }
 
     return result;
