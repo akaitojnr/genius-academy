@@ -58,55 +58,99 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
 
     function detectSectionKey(text: string): string | null {
       const clean = text.toLowerCase().replace(/<[^>]+>/g, "").replace(/[\:\-\=\*]+/g, "").trim();
-      if (clean.startsWith("title") || clean.includes("lesson title")) return "title";
+      if (clean.includes("title")) return "title";
       if (clean.includes("objective") || clean.includes("goal")) return "objectives";
       if (clean.includes("intro")) return "introduction";
       if (clean.includes("definit") || clean.includes("key term") || clean.includes("vocabulary")) return "definitions";
-      if (clean.includes("explain") || clean.includes("detail") || clean.includes("theory") || clean.includes("note") || clean.includes("content")) return "explanation";
+      if (
+        clean.includes("explain") ||
+        clean.includes("explanation") ||
+        clean.includes("detail") ||
+        clean.includes("theory") ||
+        clean.includes("note") ||
+        clean.includes("content") ||
+        clean.includes("body") ||
+        clean.includes("table")
+      ) return "explanation";
       if (clean.includes("worked") || clean.includes("example") || clean.includes("solution") || clean.includes("sample")) return "workedExamples";
       if (clean.includes("application") || clean.includes("real")) return "realLifeApplications";
       if (clean.includes("mistake") || clean.includes("error") || clean.includes("common")) return "commonMistakes";
-      if (clean.includes("summary") || clean.includes("recap") || clean.includes("takeaway")) return "summary";
+      if (clean.includes("summary") || clean.includes("recap") || clean.includes("takeaway") || clean.includes("conclusion")) return "summary";
       if (clean.includes("practice") || clean.includes("question") || clean.includes("quiz") || clean.includes("exercise")) return "practiceQuestions";
       return null;
     }
 
-    // Regex to split on <h1-h4> OR <p><strong>Heading:</strong></p> OR <p><b>Heading:</b></p>
-    const sectionSplitter = /(?=<h[1-4][^>]*>|<p>\s*<(?:strong|b)>\s*(?:Title|Objectives|Learning Objectives|Introduction|Intro|Definitions|Key Terms|Definitions &amp; Key Terms|Definitions & Key Terms|Detail Explanation|Detailed Explanation|Explanation|Worked Examples|Examples|Real-Life Applications|Applications|Common Mistakes|Summary|Practice Questions)[^<]*<\/(?:strong|b)>\s*<\/p>)/gi;
+    // Split on ANY heading tag (<h1-h6>) OR ANY paragraph starting with <strong>/<b>
+    const sectionSplitter = /(?=<h[1-6][^>]*>|<p>\s*<(?:strong|b)>[^\n<]{2,80}<\/(?:strong|b)>\s*<\/p>)/gi;
 
     const parts = html.split(sectionSplitter);
+    let currentKey: string | null = null;
+    const sectionContents: Record<string, string[]> = {
+      title: [],
+      objectives: [],
+      introduction: [],
+      definitions: [],
+      explanation: [],
+      workedExamples: [],
+      realLifeApplications: [],
+      commonMistakes: [],
+      summary: [],
+      practiceQuestions: [],
+    };
 
     for (const part of parts) {
       if (!part.trim()) continue;
 
-      const headingMatch = part.match(/^(?:<h[1-4][^>]*>(.*?)<\/h[1-4]>|<p>\s*<(?:strong|b)>\s*(.*?)\s*<\/(?:strong|b)>\s*<\/p>)/i);
+      const headingMatch = part.match(/^(?:<h[1-6][^>]*>(.*?)<\/h[1-6]>|<p>\s*<(?:strong|b)>(.*?)\s*<\/(?:strong|b)>\s*<\/p>)/i);
 
       if (headingMatch) {
         const rawHeading = headingMatch[1] || headingMatch[2] || "";
-        const key = detectSectionKey(rawHeading);
+        const detectedKey = detectSectionKey(rawHeading);
         const bodyContent = part.replace(headingMatch[0], "").trim();
 
-        if (key === "title") {
+        if (detectedKey === "title") {
           const cleanTitle = rawHeading.replace(/^Title:\s*/i, "").replace(/<[^>]+>/g, "").trim() || bodyContent.replace(/<[^>]+>/g, "").trim();
           if (cleanTitle) result.title = cleanTitle;
-        } else if (key) {
-          result[key] = (result[key] ? result[key] + "\n" : "") + (bodyContent || rawHeading);
+          currentKey = null;
+        } else if (detectedKey) {
+          currentKey = detectedKey;
+          if (bodyContent) {
+            sectionContents[detectedKey].push(bodyContent);
+          }
+        } else {
+          // Sub-heading inside an active section (e.g. "1. Fundamental Quantities" inside Detailed Explanation)
+          if (currentKey) {
+            sectionContents[currentKey].push(part.trim());
+          } else {
+            sectionContents.explanation.push(part.trim());
+          }
         }
       } else {
-        if (!result.explanation) {
-          result.explanation = part.trim();
+        if (currentKey) {
+          sectionContents[currentKey].push(part.trim());
         } else {
-          result.explanation += "\n" + part.trim();
+          sectionContents.explanation.push(part.trim());
         }
       }
     }
 
-    // Fallback for title if not assigned
+    // Assign collected section contents
+    Object.keys(sectionContents).forEach((key) => {
+      result[key] = sectionContents[key].join("\n").trim();
+    });
+
+    // Fallback 1: Title
     if (!result.title) {
-      const firstLineMatch = html.match(/Title:\s*([^\n<]+)/i);
-      if (firstLineMatch) {
-        result.title = firstLineMatch[1].replace(/<[^>]+>/g, "").trim();
+      const titleMatch = html.match(/(?:Title:\s*([^\n<]+)|<h1[^>]*>(.*?)<\/h1>)/i);
+      if (titleMatch) {
+        result.title = (titleMatch[1] || titleMatch[2] || "").replace(/<[^>]+>/g, "").trim();
       }
+    }
+
+    // Fallback 2: Ensure Detailed Explanation & Tables is NEVER omitted!
+    if (!result.explanation) {
+      const residual = html.replace(/<h1[^>]*>.*?<\/h1>/gi, "").trim();
+      result.explanation = residual;
     }
 
     return result;
