@@ -47,15 +47,15 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
     { label: "1. Learning Objectives", content: lesson.objectives },
     { label: "2. Introduction", content: lesson.introduction },
   ];
-  const gatedSections: { label: string; content: string | null }[] = [
-    { label: "3. Definitions & Key Terms", content: lesson.definitions },
-    { label: "4. Detailed Explanation & Tables", content: lesson.explanation },
-    { label: "5. Worked Examples & Step-by-Step Solutions", content: lesson.workedExamples },
-    { label: "6. Diagrams", content: lesson.diagrams },
-    { label: "7. Real-Life Applications", content: lesson.realLifeApplications },
-    { label: "8. Common Mistakes", content: lesson.commonMistakes },
-    { label: "9. Summary", content: lesson.summary },
-    { label: "10. Practice Questions", content: lesson.practiceQuestions },
+  const gatedSections: { key: string; label: string; content: string | null }[] = [
+    { key: "definitions", label: "3. Definitions & Key Terms", content: lesson.definitions },
+    { key: "explanation", label: "4. Detailed Explanation & Tables", content: lesson.explanation },
+    { key: "workedExamples", label: "5. Worked Examples & Step-by-Step Solutions", content: lesson.workedExamples },
+    { key: "diagrams", label: "6. Diagrams", content: lesson.diagrams },
+    { key: "realLifeApplications", label: "7. Real-Life Applications", content: lesson.realLifeApplications },
+    { key: "commonMistakes", label: "8. Common Mistakes", content: lesson.commonMistakes },
+    { key: "summary", label: "9. Summary", content: lesson.summary },
+    { key: "practiceQuestions", label: "10. Practice Questions", content: lesson.practiceQuestions },
   ];
 
   return (
@@ -95,14 +95,25 @@ export default async function LessonPage({ params }: { params: { lessonId: strin
 
         {hasAccess ? (
           <>
-            {gatedSections.map((s) =>
-              s.content ? (
+            {gatedSections.map((s) => {
+              if (!s.content) return null;
+
+              const isOnlyExplanation =
+                s.key === "explanation" &&
+                !lesson.objectives &&
+                !lesson.introduction &&
+                !lesson.definitions &&
+                !lesson.workedExamples &&
+                !lesson.summary &&
+                !lesson.practiceQuestions;
+
+              return (
                 <section key={s.label}>
-                  <h2 className="mb-2 font-semibold text-slate-800">{s.label}</h2>
+                  {!isOnlyExplanation && <h2 className="mb-2 font-semibold text-slate-800">{s.label}</h2>}
                   <FormattedContent content={s.content} />
                 </section>
-              ) : null
-            )}
+              );
+            })}
             <section className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500">
               <p>12. CBT Quiz for this topic — try it under CBT Practice.</p>
               <p className="mt-1">13. Assignment — see your Assignments page for anything your teacher has set.</p>

@@ -41,119 +41,34 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
   const [importHtml, setImportHtml] = useState(""); // Full HTML extracted from Word/PDF
   const [parsedLesson, setParsedLesson] = useState<Record<string, string>>({});
 
-  // Split HTML by heading tags OR <p><strong>Heading:</strong></p> into lesson sections
-  function splitHtmlBySections(html: string): Record<string, string> {
-    const result: Record<string, string> = {
-      title: "",
+  // Direct document parser: extracts lesson title and keeps 100% of Word document HTML intact
+  function parseDocumentHtml(html: string): Record<string, string> {
+    let title = "";
+
+    // Extract title from <h1>, <p><strong>Title: ...</strong></p>, or Title: line
+    const titleMatch = html.match(/(?:<h1[^>]*>(.*?)<\/h1>|<p>\s*<(?:strong|b)>\s*Title:\s*(.*?)\s*<\/(?:strong|b)>\s*<\/p>|Title:\s*([^\n<]+))/i);
+    if (titleMatch) {
+      title = (titleMatch[1] || titleMatch[2] || titleMatch[3] || "").replace(/<[^>]+>/g, "").trim();
+    }
+
+    // Clean title tag out of body HTML if present to prevent repeating title
+    let bodyHtml = html;
+    if (titleMatch && titleMatch[0]) {
+      bodyHtml = html.replace(titleMatch[0], "").trim();
+    }
+
+    return {
+      title: title || "",
       objectives: "",
       introduction: "",
       definitions: "",
-      explanation: "",
+      explanation: bodyHtml || html, // 100% of Word document content preserved exactly as formatted
       workedExamples: "",
       realLifeApplications: "",
       commonMistakes: "",
       summary: "",
       practiceQuestions: "",
     };
-
-    function detectSectionKey(text: string): string | null {
-      const clean = text.toLowerCase().replace(/<[^>]+>/g, "").replace(/[\:\-\=\*]+/g, "").trim();
-      if (clean.includes("title")) return "title";
-      if (clean.includes("objective") || clean.includes("goal")) return "objectives";
-      if (clean.includes("intro")) return "introduction";
-      if (clean.includes("definit") || clean.includes("key term") || clean.includes("vocabulary")) return "definitions";
-      if (
-        clean.includes("explain") ||
-        clean.includes("explanation") ||
-        clean.includes("detail") ||
-        clean.includes("theory") ||
-        clean.includes("note") ||
-        clean.includes("content") ||
-        clean.includes("body") ||
-        clean.includes("table")
-      ) return "explanation";
-      if (clean.includes("worked") || clean.includes("example") || clean.includes("solution") || clean.includes("sample")) return "workedExamples";
-      if (clean.includes("application") || clean.includes("real")) return "realLifeApplications";
-      if (clean.includes("mistake") || clean.includes("error") || clean.includes("common")) return "commonMistakes";
-      if (clean.includes("summary") || clean.includes("recap") || clean.includes("takeaway") || clean.includes("conclusion")) return "summary";
-      if (clean.includes("practice") || clean.includes("question") || clean.includes("quiz") || clean.includes("exercise")) return "practiceQuestions";
-      return null;
-    }
-
-    // Split on ANY heading tag (<h1-h6>) OR ANY paragraph starting with <strong>/<b>
-    const sectionSplitter = /(?=<h[1-6][^>]*>|<p>\s*<(?:strong|b)>[^\n<]{2,80}<\/(?:strong|b)>\s*<\/p>)/gi;
-
-    const parts = html.split(sectionSplitter);
-    let currentKey: string | null = null;
-    const sectionContents: Record<string, string[]> = {
-      title: [],
-      objectives: [],
-      introduction: [],
-      definitions: [],
-      explanation: [],
-      workedExamples: [],
-      realLifeApplications: [],
-      commonMistakes: [],
-      summary: [],
-      practiceQuestions: [],
-    };
-
-    for (const part of parts) {
-      if (!part.trim()) continue;
-
-      const headingMatch = part.match(/^(?:<h[1-6][^>]*>(.*?)<\/h[1-6]>|<p>\s*<(?:strong|b)>(.*?)\s*<\/(?:strong|b)>\s*<\/p>)/i);
-
-      if (headingMatch) {
-        const rawHeading = headingMatch[1] || headingMatch[2] || "";
-        const detectedKey = detectSectionKey(rawHeading);
-        const bodyContent = part.replace(headingMatch[0], "").trim();
-
-        if (detectedKey === "title") {
-          const cleanTitle = rawHeading.replace(/^Title:\s*/i, "").replace(/<[^>]+>/g, "").trim() || bodyContent.replace(/<[^>]+>/g, "").trim();
-          if (cleanTitle) result.title = cleanTitle;
-          currentKey = null;
-        } else if (detectedKey) {
-          currentKey = detectedKey;
-          if (bodyContent) {
-            sectionContents[detectedKey].push(bodyContent);
-          }
-        } else {
-          // Sub-heading inside an active section (e.g. "1. Fundamental Quantities" inside Detailed Explanation)
-          if (currentKey) {
-            sectionContents[currentKey].push(part.trim());
-          } else {
-            sectionContents.explanation.push(part.trim());
-          }
-        }
-      } else {
-        if (currentKey) {
-          sectionContents[currentKey].push(part.trim());
-        } else {
-          sectionContents.explanation.push(part.trim());
-        }
-      }
-    }
-
-    // Assign collected section contents
-    Object.keys(sectionContents).forEach((key) => {
-      result[key] = sectionContents[key].join("\n").trim();
-    });
-
-    // Fallback 1: Title
-    if (!result.title) {
-      const titleMatch = html.match(/(?:Title:\s*([^\n<]+)|<h1[^>]*>(.*?)<\/h1>)/i);
-      if (titleMatch) {
-        result.title = (titleMatch[1] || titleMatch[2] || "").replace(/<[^>]+>/g, "").trim();
-      }
-    }
-
-    // Fallback 2: Ensure Detailed Explanation & Tables is NEVER omitted!
-    if (!result.explanation) {
-      const residual = html.replace(/<h1[^>]*>.*?<\/h1>/gi, "").trim();
-      result.explanation = residual;
-    }
-
-    return result;
   }
 
   async function handleFileUpload(file: File) {
@@ -202,8 +117,8 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
       }
 
       setImportHtml(html);
-      const sections = splitHtmlBySections(html);
-      setParsedLesson(sections);
+      const parsed = parseDocumentHtml(html);
+      setParsedLesson(parsed);
     } catch (err: any) {
       console.error("Document import error:", err);
       alert(`Error reading file: ${err.message || "Failed to process document."}`);
@@ -261,89 +176,7 @@ export default function ContentManager({ subjects, courses }: { subjects: Subjec
     }
   }
 
-  // Parse Word / Document text into lesson fields smartly line-by-line
-  function parseDocument(rawText: string) {
-    const result: Record<string, string> = {
-      title: "",
-      objectives: "",
-      introduction: "",
-      definitions: "",
-      explanation: "",
-      workedExamples: "",
-      realLifeApplications: "",
-      commonMistakes: "",
-      summary: "",
-      practiceQuestions: "",
-    };
 
-    const lines = rawText.split("\n");
-    let currentSection: string | null = null;
-    const sectionBuffers: Record<string, string[]> = {
-      title: [],
-      objectives: [],
-      introduction: [],
-      definitions: [],
-      explanation: [],
-      workedExamples: [],
-      realLifeApplications: [],
-      commonMistakes: [],
-      summary: [],
-      practiceQuestions: [],
-    };
-
-    function detectHeading(line: string): string | null {
-      const clean = line
-        .trim()
-        .replace(/^[\#\*\d\.\-\:]+/, "") // Remove leading numbers, #, *, dots, dashes
-        .replace(/[\:\-\=\*]+$/, "") // Remove trailing colons, dashes
-        .trim()
-        .toLowerCase();
-
-      if (!clean) return null;
-
-      if (/^(title|lesson title|topic title)$/i.test(clean) || clean.startsWith("title")) return "title";
-      if (/^(learning objectives|objectives|objective|goals)$/i.test(clean) || clean.startsWith("objective")) return "objectives";
-      if (/^(introduction|intro)$/i.test(clean) || clean.startsWith("intro")) return "introduction";
-      if (/^(definitions|definition|key terms|definitions & key terms|definitions and key terms|vocabulary)$/i.test(clean) || clean.includes("definit") || clean.includes("key terms")) return "definitions";
-      if (/^(detailed explanation|explanation|detailed explanation & tables|explanation & tables|lesson content|body)$/i.test(clean) || clean.includes("explain") || clean.includes("explanation")) return "explanation";
-      if (/^(worked examples|worked examples & solutions|examples|examples & solutions|step-by-step solutions)$/i.test(clean) || clean.includes("worked example") || clean.includes("sample problem")) return "workedExamples";
-      if (/^(real-life applications|applications|real life applications|real life application)$/i.test(clean) || clean.includes("application")) return "realLifeApplications";
-      if (/^(common mistakes|common student mistakes|mistakes to avoid|common errors)$/i.test(clean) || clean.includes("mistake") || clean.includes("errors to avoid")) return "commonMistakes";
-      if (/^(summary|recap|key takeaways|conclusion)$/i.test(clean) || clean.startsWith("summary")) return "summary";
-      if (/^(practice questions|questions|quiz|exercise|practice exercises|self test)$/i.test(clean) || clean.includes("practice question") || clean.includes("exercises")) return "practiceQuestions";
-
-      return null;
-    }
-
-    for (let line of lines) {
-      const heading = detectHeading(line);
-      if (heading) {
-        currentSection = heading;
-        const colonIdx = line.indexOf(":");
-        if (colonIdx !== -1) {
-          const inlineText = line.slice(colonIdx + 1).trim();
-          if (inlineText) {
-            sectionBuffers[heading].push(inlineText);
-          }
-        }
-      } else {
-        if (!currentSection) {
-          if (line.trim() && sectionBuffers.title.length === 0) {
-            sectionBuffers.title.push(line.trim());
-            currentSection = "title";
-          }
-        } else {
-          sectionBuffers[currentSection].push(line);
-        }
-      }
-    }
-
-    Object.keys(sectionBuffers).forEach((key) => {
-      result[key] = sectionBuffers[key].join("\n").trim();
-    });
-
-    setParsedLesson(result);
-  }
 
   async function handleImportSubmit() {
     if (!importTopicId) {
